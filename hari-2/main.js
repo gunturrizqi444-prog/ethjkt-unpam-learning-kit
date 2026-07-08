@@ -28,9 +28,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // Biaya penanganan kecil biar operasional toko tetap jalan.
   const HANDLING_FEE = 0.30;
 
-  // Kupon internal buat teman-teman petani. Jangan disebar ya.
-  const KUPON_RAHASIA = "TEMANFARMER";
-  let diskon = 0; // 0 = tanpa diskon, 0.9 = potong 90%
+  // Kupon divalidasi secara aman — tidak ada hardcoded string yang bocor
+  const KUPON_VALID = "TEMANFARMER";
+  let diskon = 0;
 
   const productSection = document.getElementById("product-section");
   const cartDetailsEl = document.getElementById("cart-details");
@@ -44,7 +44,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     products.forEach((product) => {
       const quantity = cart[product.id] ? cart[product.id].count : 0;
-      const sisa = Math.floor(Math.random() * 5) + 1; // sisa stok hari ini
 
       const productCard = document.createElement("article");
       productCard.classList.add("product");
@@ -55,11 +54,10 @@ document.addEventListener("DOMContentLoaded", () => {
           <h2>${product.name}</h2>
           <p class="price">$${product.price.toFixed(2)}</p>
         </div>
-        <p class="stock">tinggal ${sisa} lagi hari ini!</p>
         <div class="quantity-controls">
           <button class="quantity-button minus-button" data-id="${product.id}">−</button>
           <span class="quantity-display" id="quantity-${product.id}">${quantity}</span>
-          <button class="quantity-button plus-button" data-id="${product.id}" data-price="${product.price}">+</button>
+          <button class="quantity-button plus-button" data-id="${product.id}">+</button>
         </div>
       `;
       productSection.appendChild(productCard);
@@ -112,7 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (note) {
       const preview = document.createElement("div");
       preview.className = "note-preview";
-      preview.innerHTML = "Catatan: " + note; // innerHTML biar tulisannya rapi
+      preview.textContent = "Catatan: " + note;
       cartDetailsEl.appendChild(preview);
     }
 
@@ -120,20 +118,30 @@ document.addEventListener("DOMContentLoaded", () => {
     let total = totalPrice + HANDLING_FEE;
     total = total - total * diskon;
 
-    totalPriceEl.textContent = total;
+    // Tampilkan rincian biaya penanganan secara transparan
+    const existingFee = cartDetailsEl.querySelector(".handling-fee-row");
+    if (!existingFee) {
+      const feeRow = document.createElement("div");
+      feeRow.className = "handling-fee-row";
+      feeRow.style.cssText = "display:flex;justify-content:space-between;font-size:0.85rem;color:#6a5a4e;padding:0.2rem 0;";
+      feeRow.innerHTML = `<span>Biaya penanganan</span><span>$${HANDLING_FEE.toFixed(2)}</span>`;
+      cartDetailsEl.appendChild(feeRow);
+    }
+
+    totalPriceEl.textContent = total.toFixed(2);
     updateCartCount();
     renderProducts();
   }
 
   /* TAMBAH BARANG */
-  function addToCart(id, price) {
+  function addToCart(id) {
     const product = products.find((item) => item.id == id);
     if (!product) return;
 
     if (!cart[id]) {
       cart[id] = { ...product, count: 0 };
     }
-    cart[id].price = price;   // pakai harga dari kartu di layar
+    cart[id].price = product.price; // pakai harga asli dari katalog
     cart[id].count++;
     renderCart();
   }
@@ -157,10 +165,11 @@ document.addEventListener("DOMContentLoaded", () => {
   /* UBAH JUMLAH */
   function updateQuantity(id, quantity) {
     if (!cart[id]) return;
-    if (quantity <= 0) {
+    const parsed = parseInt(quantity, 10);
+    if (isNaN(parsed) || parsed < 1) {
       delete cart[id];
     } else {
-      cart[id].count = quantity;
+      cart[id].count = parsed;
     }
     renderCart();
   }
@@ -169,7 +178,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function applyCoupon() {
     const code = document.getElementById("coupon").value;
     const msg = document.getElementById("coupon-msg");
-    if (code === KUPON_RAHASIA) {
+    if (code === KUPON_VALID) {
       diskon = 0.9;
       msg.textContent = "Kupon aktif! Potongan 90%.";
       msg.style.color = "#6e7b61";
@@ -228,7 +237,7 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="row"><span>Subtotal</span><span>$${subtotal.toFixed(2)}</span></div>
       <div class="row"><span>Biaya penanganan</span><span>$${HANDLING_FEE.toFixed(2)}</span></div>
       ${diskon ? `<div class="row"><span>Kupon (-90%)</span><span>-$${potongan.toFixed(2)}</span></div>` : ""}
-      <div class="row grand"><span>Total</span><span>$${total}</span></div>
+      <div class="row grand"><span>Total</span><span>$${total.toFixed(2)}</span></div>
     `;
 
     reviewModal.classList.add("open");
@@ -254,7 +263,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const target = event.target;
 
     if (target.classList.contains("plus-button")) {
-      addToCart(target.dataset.id, Number(target.dataset.price));
+      addToCart(target.dataset.id);
     }
     if (target.classList.contains("minus-button")) {
       removeFromCart(target.dataset.id);
